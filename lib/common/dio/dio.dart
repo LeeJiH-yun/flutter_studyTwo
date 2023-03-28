@@ -6,13 +6,14 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_studytwo/common/const/data.dart';
 import 'package:flutter_studytwo/common/secure_storage/secure_storage.dart';
 import 'package:flutter_studytwo/user/provider/auth_provider.dart';
+import 'package:flutter_studytwo/user/provider/user_me_provider.dart';
 
 final dioProvider = Provider<Dio>((ref){
   final dio = Dio();
   final storage = ref.watch(secureStorageProvider);
   
   dio.interceptors.add(
-    CustomInterceptor(storage: storage)
+    CustomInterceptor(storage: storage, ref: ref)
   );
   return dio;
 
@@ -20,9 +21,11 @@ final dioProvider = Provider<Dio>((ref){
 
 class CustomInterceptor extends Interceptor{
   final FlutterSecureStorage storage;
+  final Ref ref;
 
   CustomInterceptor({ //스토리지 안에서 토큰을 가져오기 위함으로 사용
-    required this.storage
+    required this.storage,
+    required this.ref,
   });
 
   //1. 요청을 보낼 때
@@ -66,7 +69,7 @@ class CustomInterceptor extends Interceptor{
 
   // 3. 에러 났을 때
   @override
-  void onError(DioError err, ErrorInterceptorHandler handler, WidgetRef ref) async {
+  void onError(DioError err, ErrorInterceptorHandler handler) async {
     //401에러가 났을때 (status code)
     //토큰을 재발급 받는 시도를 하고 재발급되면 다시 새로운 토큰으로 요청한다.
     print('[ERR] [${err.requestOptions.method}] ${err.requestOptions.uri}');
@@ -110,6 +113,7 @@ class CustomInterceptor extends Interceptor{
 
         return handler.resolve(response);
       } on DioError catch(e){ //Dio에러만 잡기
+        //Circular dependency error -> 무한한 오류가 난다?
         ref.read(authProvider.notifier).logout();
 
         return handler.reject(e);
